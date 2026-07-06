@@ -1,0 +1,473 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Ketebe Artwork Search</title>
+<style>
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+body {
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+  background: #f5f2ee;
+  color: #1a1a1a;
+  min-height: 100vh;
+}
+
+/* ── Header ── */
+.header {
+  background: #1a1a1a;
+  color: #fff;
+  padding: 16px 24px;
+  display: flex;
+  align-items: baseline;
+  gap: 14px;
+}
+.header h1 { font-size: 17px; font-weight: 600; letter-spacing: .03em; }
+.header-count { font-size: 12px; color: #666; }
+
+/* ── Search bar ── */
+.search-wrap {
+  position: sticky; top: 0; z-index: 10;
+  background: #fff;
+  border-bottom: 1px solid #e0dbd4;
+  padding: 10px 24px;
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  flex-wrap: wrap;
+}
+
+.search-input-wrap {
+  position: relative;
+  flex: 1;
+  min-width: 200px;
+}
+.search-input-wrap .icon {
+  position: absolute; left: 10px; top: 50%;
+  transform: translateY(-50%); color: #aaa; pointer-events: none;
+  font-size: 13px;
+}
+#searchInput {
+  width: 100%; padding: 8px 10px 8px 30px;
+  border: 1px solid #ddd; border-radius: 6px;
+  font-size: 14px; outline: none;
+}
+#searchInput:focus { border-color: #8b6f47; box-shadow: 0 0 0 2px rgba(139,111,71,.15); }
+
+.dropdown-wrap {
+  position: relative;
+  flex-shrink: 0;
+}
+.dropdown-wrap select {
+  appearance: none;
+  -webkit-appearance: none;
+  padding: 8px 28px 8px 11px;
+  border: 1px solid #ddd;
+  border-radius: 6px;
+  font-size: 13px;
+  color: #333;
+  background: #fff;
+  cursor: pointer;
+  outline: none;
+  transition: border-color .15s;
+}
+.dropdown-wrap select:focus { border-color: #8b6f47; }
+.dropdown-wrap select.has-value {
+  border-color: #8b6f47;
+  background: #fdf9f4;
+  color: #7a5f38;
+  font-weight: 500;
+}
+#styleFilter { min-width: 190px; }
+#artistFilter { min-width: 190px; }
+
+.dropdown-arrow {
+  position: absolute; right: 9px; top: 50%;
+  transform: translateY(-50%);
+  pointer-events: none; color: #aaa; font-size: 10px;
+}
+
+.clear-btn {
+  padding: 8px 11px;
+  border: 1px solid #ddd; border-radius: 6px;
+  background: #fff; cursor: pointer;
+  font-size: 12px; color: #aaa;
+  transition: all .12s;
+  display: none;
+  white-space: nowrap;
+}
+.clear-btn.visible { display: block; }
+.clear-btn:hover { border-color: #c0392b; color: #c0392b; }
+
+/* ── Status bar ── */
+.status-bar {
+  padding: 6px 24px;
+  font-size: 11px; color: #999;
+  background: #faf9f7;
+  border-bottom: 1px solid #e8e4df;
+}
+.status-bar .filter-crumb { color: #8b6f47; font-weight: 500; }
+
+/* ── Results grid ── */
+.results {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
+  gap: 1px;
+  background: #e8e4df;
+}
+
+.card {
+  display: flex; gap: 12px;
+  padding: 12px 16px;
+  background: #fff;
+  text-decoration: none; color: inherit;
+  transition: background .1s;
+}
+.card:hover { background: #faf8f5; }
+
+.thumb {
+  width: 60px; height: 60px;
+  object-fit: cover; border-radius: 4px;
+  flex-shrink: 0; background: #eee;
+}
+.thumb-placeholder {
+  width: 60px; height: 60px;
+  border-radius: 4px; background: #e8e4df;
+  flex-shrink: 0;
+}
+
+.card-body { flex: 1; min-width: 0; }
+
+.card-title {
+  font-size: 13px; font-weight: 600;
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+}
+.card-artist { font-size: 11px; color: #8b6f47; margin-top: 2px; }
+.card-arabic {
+  font-size: 15px; direction: rtl; text-align: right;
+  font-family: 'Amiri', 'Scheherazade New', 'Traditional Arabic', serif;
+  color: #333; margin-top: 3px;
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+}
+.card-tags { display: flex; gap: 4px; flex-wrap: wrap; margin-top: 4px; }
+.card-tag {
+  font-size: 10px; color: #999; background: #f0ece6;
+  padding: 1px 6px; border-radius: 3px;
+}
+
+mark { background: #fff3a3; color: inherit; border-radius: 2px; padding: 0 1px; }
+
+/* ── Empty / error ── */
+.message {
+  grid-column: 1/-1;
+  padding: 60px 24px; text-align: center;
+  color: #999; line-height: 1.7; font-size: 14px;
+  background: #fff;
+}
+.message strong { color: #555; }
+.message code { background: #eee; padding: 2px 6px; border-radius: 3px; font-size: 13px; }
+</style>
+</head>
+<body>
+
+<div class="header">
+  <h1>Ketebe Artwork Search</h1>
+  <span class="header-count" id="headerCount">Loading…</span>
+</div>
+
+<div class="search-wrap">
+  <div class="search-input-wrap">
+    <span class="icon">🔍</span>
+    <input type="text" id="searchInput" placeholder="Search Arabic text, artist, title…" autocomplete="off">
+  </div>
+
+  <div class="dropdown-wrap">
+    <select id="styleFilter"><option value="">All styles</option></select>
+    <span class="dropdown-arrow">▾</span>
+  </div>
+
+  <div class="dropdown-wrap">
+    <select id="artistFilter"><option value="">All artists</option></select>
+    <span class="dropdown-arrow">▾</span>
+  </div>
+
+  <button class="clear-btn" id="clearBtn">✕ Clear</button>
+</div>
+
+<div class="status-bar" id="statusBar">—</div>
+<div class="results" id="results"></div>
+
+<script>
+// ── Ketebe style taxonomy (exact hierarchy from ketebe.org) ──────────────────
+// indent 0 = top-level art form, 1 = sub-style, 2 = sub-sub-style
+const KETEBE_STYLES = [
+  { name: 'Hüsn-i Hat',           indent: 0 },
+  { name: 'Aklâm-ı Sitte',        indent: 1 },
+  { name: 'Muhakkak',             indent: 2 },
+  { name: 'Nesih',                indent: 2 },
+  { name: 'Reyhânî',              indent: 2 },
+  { name: 'Rıka´',           indent: 2 },   // Rıka´
+  { name: 'Sülüs',                indent: 2 },
+  { name: 'Tevkî',                indent: 2 },
+  { name: 'Celî',                 indent: 1 },
+  { name: 'Celi Sülüs',           indent: 2 },
+  { name: 'Celi Talik',           indent: 2 },
+  { name: 'Celi Muhakkak',        indent: 1 },
+  { name: 'Celi Nesih',           indent: 1 },
+  { name: 'Hendesi Hat',          indent: 1 },
+  { name: 'Kûfî',                 indent: 2 },
+  { name: 'Ma´kılî', indent: 2 }, // Ma´kılî
+  { name: 'Mağribî',    indent: 2 },   // Mağribî — same level per site
+  { name: 'Muhtelif',             indent: 1 },
+  { name: 'Celi Divani',          indent: 2 },
+  { name: 'Divani',               indent: 2 },
+  { name: 'Gubari',               indent: 2 },
+  { name: 'Hatt-ı İcaze', indent: 2 }, // Hatt-ı İcaze
+  { name: "Rık'a",           indent: 2 },   // Rık'a
+  { name: 'Müselsel',             indent: 1 },
+  { name: 'Müsenna',              indent: 1 },
+  { name: "Ta'lîk",         indent: 1 },   // Ta'lîk
+  { name: "Nestâ'lîk", indent: 2 },   // Nestâ'lîk
+  { name: 'Minyatür',             indent: 0 },
+  { name: 'Tezhip',               indent: 0 },
+  { name: 'Bulut',                indent: 1 },
+  { name: 'Çift Tahrir',          indent: 1 },
+  { name: 'Dilimli Rumi',         indent: 1 },
+  { name: 'Halkâr',               indent: 1 },
+  { name: 'Hâlkari Bezeme',       indent: 2 },
+  { name: 'Renkli Tarama Halkâr', indent: 2 },
+  { name: 'Şikâf Halkâr',         indent: 2 },
+  { name: 'Tarama Halkâr',        indent: 2 },
+  { name: 'Klasik Tezhip',        indent: 1 },
+  { name: 'Rokoko',               indent: 1 },
+  { name: 'Rumî',                  indent: 1 },
+  { name: 'Hurde Rumi',           indent: 2 },
+  { name: 'İşlemeli Rumi',        indent: 2 },
+  { name: 'Piçide Rumi',          indent: 2 },
+  { name: 'Üç İplik Rumi',        indent: 2 },
+  { name: 'Şükufe',               indent: 1 },
+  { name: 'Tığ',                   indent: 1 },
+  { name: 'Münhani',              indent: 2 },
+  { name: 'Zencerek',             indent: 1 },
+  { name: 'Kitabeli Zencerek',    indent: 2 },
+  { name: 'Zerefşan',             indent: 1 },
+  { name: 'Ebru',                 indent: 0 },
+  { name: 'Cilt',                 indent: 0 },
+  { name: 'Kalemişi',             indent: 0 },
+  { name: "Kat'ı",           indent: 0 },   // Kat'ı
+  { name: 'Çini',                 indent: 0 },
+  { name: 'Restorasyon',          indent: 0 },
+  { name: 'Naht',                 indent: 0 },
+  { name: 'Fotoğraf',             indent: 0 },
+  { name: 'Geometrik Tasarım',    indent: 0 },
+  { name: 'Seramik',              indent: 0 },
+];
+
+// Returns all descendant style names (deeper indent levels following index i)
+function descendants(i) {
+  const level = KETEBE_STYLES[i].indent;
+  const names = [];
+  for (let j = i + 1; j < KETEBE_STYLES.length; j++) {
+    if (KETEBE_STYLES[j].indent <= level) break;
+    names.push(KETEBE_STYLES[j].name);
+  }
+  return names;
+}
+
+// ── Data ──────────────────────────────────────────────────────────────────────
+
+let artworks = [];
+
+fetch('./artworks.json')
+  .then(r => { if (!r.ok) throw new Error(); return r.json(); })
+  .then(data => {
+    artworks = data.map(a => {
+      if (a.url && a.url.includes('/en/artwork/'))
+        a.url = `https://ketebe.org/eser/${a.id}?ref=artworks`;
+      return a;
+    });
+    document.getElementById('headerCount').textContent =
+      `${artworks.length.toLocaleString()} artworks`;
+    buildStyleDropdown();
+    buildArtistDropdown();
+    doSearch();
+  })
+  .catch(() => {
+    document.getElementById('results').innerHTML = `
+      <div class="message">
+        <strong>Could not load artworks.json</strong><br><br>
+        Run: <code>python3 index.py --serve</code>
+      </div>`;
+    document.getElementById('headerCount').textContent = 'Not loaded';
+  });
+
+// ── Dropdown builders ─────────────────────────────────────────────────────────
+
+function buildStyleDropdown() {
+  // Count artworks per calligraphyType
+  const counts = {};
+  for (const a of artworks)
+    for (const s of (a.calligraphyTypes || []))
+      counts[s] = (counts[s] || 0) + 1;
+
+  const sel = document.getElementById('styleFilter');
+  const nbsp = ' ';
+
+  KETEBE_STYLES.forEach((s) => {
+    const n = counts[s.name] || 0;
+    if (n === 0) return;
+
+    const opt = document.createElement('option');
+    opt.value = s.name;
+    const pad = nbsp.repeat(s.indent * 3);
+    opt.textContent = `${pad}${s.name}  (${n})`;
+    sel.appendChild(opt);
+  });
+}
+
+function buildArtistDropdown() {
+  const counts = {};
+  for (const a of artworks)
+    for (const ar of a.artists)
+      counts[ar] = (counts[ar] || 0) + 1;
+
+  const sel = document.getElementById('artistFilter');
+  Object.entries(counts)
+    .sort((a, b) => b[1] - a[1])   // most artworks first
+    .forEach(([name, n]) => {
+      const opt = document.createElement('option');
+      opt.value = name;
+      opt.textContent = `${name}  (${n})`;
+      sel.appendChild(opt);
+    });
+}
+
+// ── Controls ──────────────────────────────────────────────────────────────────
+
+document.getElementById('searchInput').addEventListener('input', debounce(doSearch, 160));
+document.getElementById('styleFilter').addEventListener('change',  () => { highlight(); doSearch(); });
+document.getElementById('artistFilter').addEventListener('change', () => { highlight(); doSearch(); });
+document.getElementById('clearBtn').addEventListener('click', () => {
+  document.getElementById('searchInput').value = '';
+  document.getElementById('styleFilter').value = '';
+  document.getElementById('artistFilter').value = '';
+  highlight();
+  doSearch();
+});
+
+function highlight() {
+  ['styleFilter', 'artistFilter'].forEach(id => {
+    const el = document.getElementById(id);
+    el.classList.toggle('has-value', !!el.value);
+  });
+  const any = document.getElementById('styleFilter').value  ||
+              document.getElementById('artistFilter').value ||
+              document.getElementById('searchInput').value;
+  document.getElementById('clearBtn').classList.toggle('visible', !!any);
+}
+
+// ── Search ───────────────────────────────────────────────────────────────────
+
+function doSearch() {
+  const q      = document.getElementById('searchInput').value.trim();
+  const style  = document.getElementById('styleFilter').value;
+  const artist = document.getElementById('artistFilter').value;
+
+  // Style filter: check calligraphyTypes array (includes parent + sub-styles)
+  let pool = artworks;
+  if (style) {
+    pool = pool.filter(a => (a.calligraphyTypes || []).includes(style));
+  }
+  if (artist) pool = pool.filter(a => a.artists.includes(artist));
+
+  // Text search within filtered pool
+  let results;
+  if (!q) {
+    results = pool;
+  } else {
+    const tokens = q.toLowerCase().split(/\s+/).filter(Boolean);
+    const scored = [];
+    for (const a of pool) {
+      const hay = [...a.arabicTexts, ...a.titles, ...a.artists,
+                   ...(a.calligraphyTypes || []), a.form, a.ink]
+        .join(' ').toLowerCase();
+      if (!tokens.every(t => hay.includes(t))) continue;
+      const score = tokens.reduce((s, t) => s + occurrences(hay, t), 0);
+      scored.push({ a, score });
+    }
+    scored.sort((x, y) => y.score - x.score);
+    results = scored.map(s => s.a);
+  }
+
+  renderResults(results.slice(0, 200), q);
+
+  // Status line
+  const crumbs = [style, artist].filter(Boolean);
+  const crumbHtml = crumbs.length
+    ? ` · <span class="filter-crumb">${crumbs.map(esc).join(' · ')}</span>`
+    : '';
+  const base = (!q && !style && !artist)
+    ? `${Math.min(200, artworks.length).toLocaleString()} of ${artworks.length.toLocaleString()} artworks`
+    : `${results.length.toLocaleString()} of ${pool.length.toLocaleString()} matched`;
+  document.getElementById('statusBar').innerHTML = base + crumbHtml;
+}
+
+function occurrences(text, token) {
+  let n = 0, p = 0;
+  while ((p = text.indexOf(token, p)) !== -1) { n++; p++; }
+  return n;
+}
+
+// ── Render ───────────────────────────────────────────────────────────────────
+
+function renderResults(list, q) {
+  const el = document.getElementById('results');
+  if (!list.length) {
+    el.innerHTML = '<div class="message">No artworks matched.</div>';
+    return;
+  }
+  el.innerHTML = list.map(a => {
+    const title  = hl(a.titles[0] || 'Untitled', q);
+    const artist = hl(a.artists[0] || 'Unknown', q);
+    const extra  = a.artists.length > 1
+      ? ` <span style="color:#ccc">+${a.artists.length - 1}</span>` : '';
+    const arabic = a.arabicTexts[0] ? hl(a.arabicTexts[0], q) : '';
+    const tags   = [a.form, a.ink].filter(Boolean)
+      .map(t => `<span class="card-tag">${esc(t)}</span>`).join('');
+    const thumb  = a.thumbnail
+      ? `<img class="thumb" src="${esc(a.thumbnail)}" alt="" loading="lazy" onerror="this.style.display='none'">`
+      : `<div class="thumb-placeholder"></div>`;
+
+    return `<a class="card" href="${esc(a.url)}" target="_blank" rel="noopener">
+      ${thumb}
+      <div class="card-body">
+        <div class="card-title">${title}</div>
+        <div class="card-artist">${artist}${extra}</div>
+        ${arabic ? `<div class="card-arabic">${arabic}</div>` : ''}
+        ${tags   ? `<div class="card-tags">${tags}</div>`   : ''}
+      </div>
+    </a>`;
+  }).join('');
+}
+
+// ── Helpers ───────────────────────────────────────────────────────────────────
+
+function hl(text, q) {
+  if (!q || !text) return esc(text || '');
+  let s = esc(text);
+  q.trim().split(/\s+/).filter(Boolean).forEach(t => {
+    s = s.replace(new RegExp('(' + reEsc(t) + ')', 'gi'), '<mark>$1</mark>');
+  });
+  return s;
+}
+function esc(s) {
+  return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+}
+function reEsc(s) { return s.replace(/[.*+?^${}()|[\]\\]/g,'\\$&'); }
+function debounce(fn, ms) {
+  let t; return (...a) => { clearTimeout(t); t = setTimeout(() => fn(...a), ms); };
+}
+</script>
+</body>
+</html>

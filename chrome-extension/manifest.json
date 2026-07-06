@@ -1,0 +1,15 @@
+{
+  "manifest_version": 3,
+  "name": "Ketebe Artwork Downloader",
+  "version": "1.0",
+  "description": "Download full-resolution calligraphy artworks from ketebe.org",
+  "permissions": ["downloads", "activeTab"],
+  "host_permissions": [
+    "https://ketebe.org/*",
+    "https://image.yenisafak.com/*"
+  ],
+  "action": {
+    "default_popup": "popup.html",
+    "default_title": "Download Ketebe Artwork"
+  }
+}
